@@ -89,7 +89,7 @@ android {
         preDexLibraries = preDexEnabled && !isTravis
         incremental true
         maxProcessCount 8
-        javaMaxHeapSize "6g"
+        javaMaxHeapSize = isTravis ? "2g" : "6g"
     }
 
     aaptOptions {
@@ -150,6 +150,12 @@ android {
             showStandardStreams = true
         }
     }
+
+    if (isTravis) {
+        lintOptions {
+            abortOnError false
+        }
+    }
 }
 
 unMock {
@@ -158,9 +164,11 @@ unMock {
     keep "android.text.TextUtils"
 }
 
-bugtags {
-    appKey "82cdb5f7f8925829ccc4a6e7d5d12216"
-    appSecret BUG_TAGS_API_SECRET
+if (!isTravis) {
+    bugtags {
+        appKey "82cdb5f7f8925829ccc4a6e7d5d12216"
+        appSecret BUG_TAGS_API_SECRET
+    }
 }
 
 gitSha {
