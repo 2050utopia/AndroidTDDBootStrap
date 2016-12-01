@@ -1,24 +1,107 @@
-apply plugin: 'com.github.okbuilds.okbuck-gradle-plugin'
+apply from: 'buildsystem/dependencies.gradle'
+apply plugin: 'com.uber.okbuck'
 okbuck {
-    projectTargets = [
-            'app': 'devDebug',
-    ]
+    buildToolVersion "$rootProject.ext.androidBuildToolsVersion"
+    target "android-$rootProject.ext.androidTargetSdkVersion"
     linearAllocHardLimit = [
-            app: 7194304
+            app: 16 * 1024 * 1024
     ]
     primaryDexPatterns = [
             app: [
-                    '^com/github/piasy/gh/BootstrapApp^',
-                    '^com/github/piasy/gh/BuildConfig^',
-                    '^com/frogermcs/androiddevmetrics/AndroidDevMetrics^',
+                    '^com/github/piasy/bootstrap/AppShell^',
+                    '^com/github/piasy/bootstrap/BootstrapApp^',
+                    '^com/github/piasy/bootstrap/BuildConfig^',
+                    '^com/github/piasy/bootstrap/analytics/AppBlockCanaryContext^',
+                    '^com/facebook/buck/android/support/exopackage/',
+                    '^android/support/multidex/',
+                    '^android/support/annotation/',
                     '^android/support/v4/app/NotificationCompat$Builder^',
+                    '^com/frogermcs/androiddevmetrics/AndroidDevMetrics^',
                     '^com/facebook/stetho/Stetho^',
                     '^com/squareup/leakcanary/LeakCanary^',
                     '^com/squareup/leakcanary/AnalysisResult^',
                     '^com/squareup/leakcanary/ExcludedRefs^',
                     '^com/nshmura/strictmodenotifier/StrictModeNotifier^',
                     '^com/github/anrwatchdog/ANRWatchDog^',
-                    '^com/github/piasy/gh/analytics/AppBlockCanaryContext^',
             ]
     ]
+    exopackage = [
+            app: true
+    ]
+    appLibDependencies = [
+            'appDev': [
+                    'buck-android-support',
+                    'com.android.support:multidex',
+                    'com.android.support:support-annotations',
+            ]
+    ]
+    wrapper {
+        repo = 'https://github.com/OkBuilds/buck.git'
+        remove = ['.buckconfig.local', "**/BUCK"]
+        keep = [".okbuck/**/BUCK"]
+        watch += ["**/*.sq"]
+    }
+    experimental {
+        retrolambda = true
+    }
+    extraBuckOpts = [
+        'appDebug': [
+            "binary": ["trim_resource_ids = True"]
+        ]
+    ]
+}
+
+Task okbuckTask = project.tasks.getByName("okbuck")
+
+subprojects { project ->
+    afterEvaluate {
+        if (project.plugins.hasPlugin('java')) {
+            addCommonConfigurationForJavaModules(project)
+        } else if (project.plugins.hasPlugin('com.android.application')
+                || project.plugins.hasPlugin('com.android.library')) {
+            addCommonConfigurationForAndroidModules(project, okbuckTask)
+        }
+
+        project.tasks.withType(Test) { Test task ->
+            task.jvmArgs << "-Djava.awt.headless=true"
+        }
+    }
+}
+
+static def addCommonConfigurationForJavaModules(Project project) {
+    if (project.plugins.hasPlugin('me.tatarka.retrolambda')) {
+        project.sourceCompatibility = JavaVersion.VERSION_1_8
+        project.targetCompatibility = JavaVersion.VERSION_1_8
+    } else {
+        project.sourceCompatibility = JavaVersion.VERSION_1_7
+        project.targetCompatibility = JavaVersion.VERSION_1_7
+    }
+}
+def addCommonConfigurationForAndroidModules(Project project, Task okbuckTask) {
+    project.android {
+        compileOptions {
+            if (project.plugins.hasPlugin('me.tatarka.retrolambda')) {
+                sourceCompatibility JavaVersion.VERSION_1_8
+                targetCompatibility JavaVersion.VERSION_1_8
+            } else {
+                sourceCompatibility JavaVersion.VERSION_1_7
+                targetCompatibility JavaVersion.VERSION_1_7
+            }
+        }
+    }
+
+    def variants
+    if (project.plugins.hasPlugin('com.android.application')) {
+        variants = project.android.applicationVariants
+    } else {
+        variants = project.android.libraryVariants
+    }
+
+    if (project.plugins.hasPlugin('com.squareup.sqldelight')) {
+        variants.all {
+            Task sqlDelightTask = project.tasks.getByName("generate${it.name.capitalize()}SqlDelightInterface")
+            okbuckTask.dependsOn(sqlDelightTask)
+            project.android.sourceSets."${it.name}".java.srcDirs += [sqlDelightTask.outputs.files[0] as String]
+        }
+    }
 }

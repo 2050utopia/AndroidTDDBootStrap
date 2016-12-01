@@ -23,17 +23,16 @@
  */
 
 apply plugin: 'com.android.application'
-apply plugin: 'com.frogermcs.androiddevmetrics'
-apply plugin: 'com.neenbedankt.android-apt'
 apply plugin: 'me.tatarka.retrolambda'
+apply plugin: 'com.frogermcs.androiddevmetrics'
 apply plugin: 'de.mobilej.unmock'
 apply plugin: 'com.ofg.uptodate'
 apply plugin: 'com.getkeepsafe.dexcount'
-apply from: '../AndroidCodeQualityConfig/quality.gradle'
-apply plugin: 'com.bugtags.library.plugin'
+apply plugin: 'io.fabric'
 apply plugin: 'com.jakewharton.butterknife'
 apply plugin: 'android-git-sha'
 apply plugin: 'net.ltgt.errorprone'
+apply from: '../AndroidCodeQualityConfig/quality.gradle'
 
 /*def keyConfigPath
 if (isFamily(FAMILY_WINDOWS)) {
@@ -50,7 +49,6 @@ if (new File(keyConfigPath).exists()) {
 }*/
 
 def isTravis = "true".equals(System.getenv("TRAVIS"))
-def preDexEnabled = "true".equals(System.getProperty("pre-dex", "true"))
 
 android {
     compileSdkVersion rootProject.ext.androidCompileSdkVersion
@@ -62,16 +60,18 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.github.piasy.gh"
+        applicationId "com.github.piasy.bootstrap"
         minSdkVersion rootProject.ext.androidMinSdkVersion
         targetSdkVersion rootProject.ext.androidTargetSdkVersion
-        versionCode rootProject.ext.versionCode
-        versionName rootProject.ext.versionName
+        versionCode rootProject.ext.releaseVersionCode
+        versionName rootProject.ext.releaseVersionName
 
         multiDexEnabled true
-        testInstrumentationRunner "com.github.piasy.gh.CustomTestRunner"
+        vectorDrawables.useSupportLibrary = true
+        testInstrumentationRunner "com.github.piasy.bootstrap.BootstrapAppRunner"
 
         buildConfigField "String", "API_BASE_URL", "\"https://api.github.com/\""
+        buildConfigField "int", "EXOPACKAGE_FLAGS", "0"
     }
 
     compileOptions {
@@ -83,11 +83,12 @@ android {
         exclude 'META-INF/services/javax.annotation.processing.Processor'
         exclude 'META-INF/LICENSE.txt'
         exclude 'META-INF/NOTICE.txt'
+        exclude 'META-INF/rxjava.properties'
     }
 
     dexOptions {
         // Skip pre-dexing when running on Travis CI or when disabled via -Dpre-dex=false.
-        preDexLibraries = preDexEnabled && !isTravis
+        preDexLibraries = !isTravis
         maxProcessCount 8
         javaMaxHeapSize = isTravis ? "2g" : "6g"
     }
@@ -117,6 +118,8 @@ android {
             minifyEnabled false
             debuggable true
             signingConfig signingConfigs.develop
+            testCoverageEnabled isTravis
+            ext.enableCrashlytics = false
         }
 
         release {
@@ -126,12 +129,14 @@ android {
             signingConfig signingConfigs.develop
             //signingConfig signingConfigs.production
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            ext.enableCrashlytics = true
         }
     }
 
     productFlavors {
         dev {
             // inherit from default config
+            buildConfigField "int", "EXOPACKAGE_FLAGS", "1"
         }
 
         prod {
@@ -150,12 +155,6 @@ android {
             showStandardStreams = true
         }
     }
-
-    if (isTravis) {
-        lintOptions {
-            abortOnError false
-        }
-    }
 }
 
 unMock {
@@ -163,13 +162,6 @@ unMock {
     downloadTo "${System.getenv('HOME')}/.gradle/caches/"
 
     keep "android.text.TextUtils"
-}
-
-if (!isTravis) {
-    bugtags {
-        appKey "82cdb5f7f8925829ccc4a6e7d5d12216"
-        appSecret BUG_TAGS_API_SECRET
-    }
 }
 
 gitSha {
@@ -183,16 +175,12 @@ dependencies {
     def aptDependencies = rootProject.ext.aptDependencies
     def testDependencies = rootProject.ext.testDependencies
 
-    compile appDependencies.recyclerViewV7
+    compile fileTree(dir: 'libs', include: ['*.jar'])
     compile appDependencies.cardViewV7
 
     compile project(':model')
 
     compile appDependencies.rxJavaProGuardRules
-
-    compile(appDependencies.once) {
-        exclude module: 'support-annotations'
-    }
 
     compile(appDependencies.fresco) {
         exclude module: 'support-v4'
@@ -204,8 +192,11 @@ dependencies {
         exclude module: 'appcompat-v7'
     }
 
-    compile(appDependencies.bugTags) {
-        exclude module: 'support-v4'
+    compile(appDependencies.crashlytics) {
+        transitive = true;
+    }
+    compile(appDependencies.answers) {
+        transitive = true;
     }
 
     compile appDependencies.gitSha
@@ -215,30 +206,18 @@ dependencies {
     compile appDependencies.blockCanary
     compile appDependencies.leakCanary
 
-    apt aptDependencies.daggerApt
-    apt aptDependencies.autoBundleApt
-    apt aptDependencies.butterKnifeApt
-    apt aptDependencies.onActivityResultApt
+    annotationProcessor aptDependencies.daggerApt
+    annotationProcessor aptDependencies.autoBundleApt
+    annotationProcessor aptDependencies.butterKnifeApt
+    annotationProcessor aptDependencies.onActivityResultApt
     retrolambdaConfig aptDependencies.retrolambda
     errorprone aptDependencies.errorprone
 
+    androidTestCompile project(':mocks')
     androidTestCompile project(':testbase')
-    androidTestCompile(testDependencies.androidJUnitRunner) {
-        exclude module: 'support-annotations'
-    }
-    androidTestCompile(testDependencies.mockito) {
-        exclude module: 'hamcrest-core'
-    }
-    androidTestCompile testDependencies.dexmaker
-    androidTestCompile(testDependencies.dexmakerMockito) {
-        exclude module: 'hamcrest-core'
-        exclude module: 'mockito-core'
-    }
-    androidTestCompile(testDependencies.androidJUnit4Rules) {
-        exclude module: 'support-annotations'
-        exclude module: 'hamcrest-core'
-    }
-    androidTestApt(aptDependencies.daggerApt) {
+    androidTestAnnotationProcessor(aptDependencies.daggerApt) {
         exclude module: 'dagger'
     }
+    androidTestProvided testDependencies.restMockAndroid
+    androidTestProvided testDependencies.hamcrestLibrary
 }
