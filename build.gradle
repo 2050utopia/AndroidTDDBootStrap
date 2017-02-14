@@ -26,7 +26,7 @@ buildscript {
         }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.2.2'
+        classpath 'com.android.tools.build:gradle:2.2.3'
 
         classpath 'com.ofg:uptodate-gradle-plugin:1.6.2'
         classpath 'de.mobilej.unmock:UnMockPlugin:0.5.1'
@@ -35,7 +35,9 @@ buildscript {
         classpath 'com.frogermcs.androiddevmetrics:androiddevmetrics-plugin:0.4'
         classpath 'com.github.promeg:android-git-sha-plugin:1.0.0'
         classpath "net.ltgt.gradle:gradle-errorprone-plugin:0.0.8"
-        classpath 'com.uber:okbuck:0.10.1'
+        classpath('com.uber:okbuck:0.14.3') {
+            exclude module: 'gradle'
+        }
 
         classpath 'me.tatarka:gradle-retrolambda:3.3.0'
         classpath 'me.tatarka.retrolambda.projectlombok:lombok.ast:0.2.3.a2'

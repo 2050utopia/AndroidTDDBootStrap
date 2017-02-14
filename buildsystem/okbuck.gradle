@@ -41,14 +41,9 @@ okbuck {
         keep = [".okbuck/**/BUCK"]
         watch += ["**/*.sq"]
     }
-    experimental {
-        retrolambda = true
+    intellij {
+        sources = true
     }
-    extraBuckOpts = [
-        'appDebug': [
-            "binary": ["trim_resource_ids = True"]
-        ]
-    ]
 }
 
 Task okbuckTask = project.tasks.getByName("okbuck")
@@ -77,7 +72,8 @@ static def addCommonConfigurationForJavaModules(Project project) {
         project.targetCompatibility = JavaVersion.VERSION_1_7
     }
 }
-def addCommonConfigurationForAndroidModules(Project project, Task okbuckTask) {
+
+static def addCommonConfigurationForAndroidModules(Project project, Task okbuckTask) {
     project.android {
         compileOptions {
             if (project.plugins.hasPlugin('me.tatarka.retrolambda')) {

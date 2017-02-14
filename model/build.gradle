@@ -12,11 +12,6 @@ android {
     compileSdkVersion rootProject.ext.androidCompileSdkVersion
     buildToolsVersion rootProject.ext.androidBuildToolsVersion
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-
     defaultConfig {
         minSdkVersion rootProject.ext.androidMinSdkVersion
         targetSdkVersion rootProject.ext.androidTargetSdkVersion
@@ -51,14 +46,6 @@ android {
         exclude 'META-INF/rxjava.properties'
     }
 
-    testOptions.unitTests.all {
-        testLogging {
-            events 'passed', 'skipped', 'failed', 'standardOut', 'standardError'
-            outputs.upToDateWhen { false }
-            showStandardStreams = true
-        }
-    }
-
     if (isTravis) {
         lintOptions {
             abortOnError false
@@ -81,8 +68,12 @@ dependencies {
     compile project(':base')
     compile modelDependencies.multiDex
 
-    provided aptDependencies.autoValue
-    provided(aptDependencies.autoGsonApt) {
+    provided aptDependencies.autoValue // for ide
+    annotationProcessor aptDependencies.autoValue // for okbuck
+    provided(aptDependencies.autoGsonApt) { // for ide
+        exclude module: 'auto-value'
+    }
+    annotationProcessor(aptDependencies.autoGsonApt) { // for okbuck
         exclude module: 'auto-value'
     }
     annotationProcessor aptDependencies.daggerApt
